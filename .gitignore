@@ -1,0 +1,29 @@
+# Local Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local Worklog data and secrets
+.worklog/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+provider-settings.json
+
+# Frontend dependencies and build output
+apps/web/node_modules/
+apps/web/dist/
+apps/web/tsconfig.tsbuildinfo
+
+# Private presentation build artifacts and validation receipts
+.pptx-build/
+*.inspect.ndjson
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/

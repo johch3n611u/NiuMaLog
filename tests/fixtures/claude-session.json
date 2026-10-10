@@ -1,0 +1,8 @@
+{
+  "provider": "claude",
+  "name": "Release notes",
+  "chat_messages": [
+    {"sender": "human", "text": "项目: docs\n准备周报", "created_at": "2026-10-09T14:00:00Z"},
+    {"sender": "assistant", "content": [{"type": "text", "text": "决定采用 Markdown 和 HTML 双格式输出。"}], "created_at": "2026-10-09T14:20:00Z"}
+  ]
+}

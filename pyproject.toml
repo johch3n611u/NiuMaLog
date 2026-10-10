@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "worklog"
+version = "0.1.0"
+description = "Local-first work logs and weekly reports from Codex and Claude conversations"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Worklog contributors" }]
+dependencies = [
+  "fastapi>=0.110",
+  "pydantic>=2.0",
+  "typer>=0.12",
+  "keyring>=25.0",
+  "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+worklog = "worklog.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["worklog*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

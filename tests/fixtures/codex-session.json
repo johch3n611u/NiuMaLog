@@ -1,0 +1,9 @@
+{
+  "provider": "codex",
+  "title": "Worklog MVP",
+  "messages": [
+    {"role": "user", "content": "项目: worklog\n请整理导入器", "timestamp": "2026-10-10T09:00:00Z"},
+    {"role": "assistant", "content": "已完成 Codex 适配器和增量导入。下一步补充报告模板。", "timestamp": "2026-10-10T09:25:00Z"},
+    {"role": "assistant", "content": "遇到的问题：Claude 导出格式还需要更多样例。", "timestamp": "2026-10-10T10:00:00Z"}
+  ]
+}
