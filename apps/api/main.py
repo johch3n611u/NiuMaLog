@@ -24,7 +24,8 @@ def _payload(request: Any) -> Dict[str, Any]:
 try:
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, RedirectResponse
+    from fastapi.staticfiles import StaticFiles
 
     app = FastAPI(title="Worklog", version="0.1.0")
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
@@ -51,8 +52,8 @@ try:
 
     @app.get("/api/events")
     def events(start: Optional[date] = None, end: Optional[date] = None, project: Optional[str] = None) -> Any:
-        if not storage.list_events(start, end, project):
-            service.refresh_events()
+        # 資料有變才重算；原本只在「一個事件都沒有」時才分析，導致匯入後看不到新資料。
+        service.refresh_events_if_stale()
         return [event.to_dict() for event in storage.list_events(start, end, project)]
 
     @app.patch("/api/events/{event_id}")
@@ -166,6 +167,47 @@ try:
             return config.to_dict()
         except ProviderError as exc:
             raise HTTPException(400, str(exc))
+
+    # 前端 build 產物。存在就掛成同源靜態站，讓「一個行程」就能完整使用。
+    # npm run build 之後才有 dist；沒建置過時維持純 API 行為。
+    from pathlib import Path
+
+    WEB_DIST = Path(__file__).resolve().parents[2] / "apps" / "web" / "dist"
+
+    if (WEB_DIST / "index.html").is_file():
+        app.mount("/assets", StaticFiles(directory=str(WEB_DIST / "assets")), name="assets")
+
+        @app.get("/")
+        def index() -> FileResponse:
+            return FileResponse(str(WEB_DIST / "index.html"))
+
+        @app.get("/{full_path:path}")
+        def spa_fallback(full_path: str) -> Any:
+            # SPA 路由：非 /api 的路徑一律回到 index.html。
+            if full_path.startswith("api/"):
+                raise HTTPException(404)
+            candidate = WEB_DIST / full_path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
+            return FileResponse(str(WEB_DIST / "index.html"))
+
+    if os.getenv("WORKLOG_NO_BROWSER") != "1":
+        @app.on_event("startup")
+        def _open_browser() -> None:
+            import threading
+            import webbrowser
+
+            host = os.getenv("WORKLOG_HOST", "127.0.0.1")
+            port = os.getenv("WORKLOG_PORT", "8000")
+            url = "http://%s:%s/" % (host, port)
+            # 等 uvicorn 真正開始監聽再開，避免瀏覽器看到連線失敗。
+            def _delayed() -> None:
+                import time
+
+                time.sleep(1.0)
+                webbrowser.open(url)
+
+            threading.Thread(target=_delayed, daemon=True).start()
 
 except ImportError:
     app = None

@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from 'react'
 type Event = { id: string; date: string; project: string; type: string; title: string; summary: string }
 type Report = { title?: string; markdown: string; html: string; kind: string; mode: string }
 
-const API = import.meta.env.VITE_WORKLOG_API ?? 'http://127.0.0.1:8000'
+// 預設走同源相對路徑：開發時 vite proxy 轉給後端，正式版由 FastAPI 直接服務。
+// 要指向別台機器時才設 VITE_WORKLOG_API。
+const API = import.meta.env.VITE_WORKLOG_API ?? ''
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${API}${path}`)
