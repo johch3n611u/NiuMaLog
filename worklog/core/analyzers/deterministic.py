@@ -21,14 +21,27 @@ class DeterministicAnalyzer:
     def __init__(self, project_overrides: Optional[Dict[str, str]] = None):
         self.project_overrides = project_overrides or {}
 
+    @staticmethod
+    def _marker_project(text: str) -> str:
+        """取出 ``项目:`` / ``project:`` 後面的專案名。
+
+        - capture 群組的字元類別含空白，所以 ``项目：`` 後面只跟空白時會抓到空字串。
+          這種情況必須回傳空值讓呼叫端退回下一個規則，不能把整個會話的專案釘成空的。
+        - 字元類別必須含反斜線與冒號，否則 Windows 路徑 ``Project: F:\\JavaWorkspace``
+          會在第一個 ``\\`` 就斷掉，整個會話被標成專案 "F"。
+        """
+        marker = re.search(r"(?:项目|project)\s*[:：]\s*([\w\-./\\: 一-龥]{1,80})", text, re.IGNORECASE)
+        if not marker:
+            return ""
+        return marker.group(1).strip().rstrip("。,.，、;；:：/\\").strip()
+
     def project_for(self, message: Message, conversation: Optional[Conversation], conversation_projects: Optional[Dict[str, str]] = None) -> str:
         if message.conversation_id in self.project_overrides:
             return self.project_overrides[message.conversation_id]
-        text = message.text
-        marker = re.search(r"(?:项目|project)\s*[:：]\s*([\w\-./一-龥 ]{1,40})", text, re.IGNORECASE)
-        if marker:
-            return marker.group(1).strip().rstrip("。,.，")
-        tag = re.search(r"#([\w\-]+)", text)
+        marker_project = self._marker_project(message.text)
+        if marker_project:
+            return marker_project
+        tag = re.search(r"#([\w\-]+)", message.text)
         if tag:
             return tag.group(1)
         if conversation_projects and message.conversation_id in conversation_projects:
@@ -60,11 +73,11 @@ class DeterministicAnalyzer:
     def analyze(self, messages: Sequence[Message], conversations: Sequence[Conversation] = ()) -> List[WorkEvent]:
         conversation_map = {conversation.id: conversation for conversation in conversations}
         conversation_projects: Dict[str, str] = {}
-        marker_pattern = re.compile(r"(?:项目|project)\s*[:：]\s*([\w\-./一-龥 ]{1,40})", re.IGNORECASE)
         for message in messages:
-            marker = marker_pattern.search(message.text)
-            if marker:
-                conversation_projects[message.conversation_id] = marker.group(1).strip().rstrip("。,.，")
+            marker_project = self._marker_project(message.text)
+            # 只記非空值：否則一則「项目：」後面沒內容的訊息會把整個會話的專案釘成空字串。
+            if marker_project:
+                conversation_projects[message.conversation_id] = marker_project
         events: List[WorkEvent] = []
         for message in messages:
             if not message.text.strip() or not message.timestamp:

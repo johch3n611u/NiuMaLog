@@ -1,0 +1,2 @@
+[console_scripts]
+worklog = worklog.cli:main

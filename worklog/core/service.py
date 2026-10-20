@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .analyzers import DeterministicAnalyzer
-from .domain import Message, Report, ReportContext, ReportDocument, ReportDraft, WorkEvent
+from .domain import Conversation, Message, Report, ReportContext, ReportDocument, ReportDraft, WorkEvent
 from .renderers import ExcelRenderer, HtmlRenderer, MarkdownRenderer
 from .storage import Storage
 from .utils import stable_hash
@@ -35,7 +35,32 @@ class WorklogService:
         conversations = self.storage.list_conversations()
         messages = self.storage.list_all_messages()
         events = self.analyzer.analyze(messages, conversations)
-        self.storage.save_events(events)
+        self.storage.replace_events(events)
+        self.storage.set_meta("analyzed_fingerprint", self._fingerprint(conversations, messages))
+        return events
+
+    @staticmethod
+    def _fingerprint(conversations: Sequence[Conversation], messages: Sequence[Message]) -> str:
+        """用來判斷資料有沒有變的輕量記號。
+
+        全量重算在萬筆規模約 2.5 秒，不能每次請求都做；但匯入新資料後又必須重算，
+        否則新會話永遠不會出現在時間線。
+        """
+        newest = ""
+        for conversation in conversations:
+            stamp = conversation.imported_at.isoformat() if conversation.imported_at else ""
+            if stamp > newest:
+                newest = stamp
+        return "%d:%d:%s" % (len(conversations), len(messages), newest)
+
+    def refresh_events_if_stale(self) -> List[WorkEvent]:
+        conversations = self.storage.list_conversations()
+        messages = self.storage.list_all_messages()
+        if self.storage.get_meta("analyzed_fingerprint") == self._fingerprint(conversations, messages):
+            return self.storage.list_events()
+        events = self.analyzer.analyze(messages, conversations)
+        self.storage.replace_events(events)
+        self.storage.set_meta("analyzed_fingerprint", self._fingerprint(conversations, messages))
         return events
 
     def build_document(self, kind: str, start: date, end: date, project: Optional[str] = None) -> ReportDocument:

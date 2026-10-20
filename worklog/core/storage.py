@@ -84,7 +84,23 @@ class Storage:
                     generated_at TEXT NOT NULL,
                     metadata_json TEXT NOT NULL DEFAULT '{}'
                 );
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
                 """
+            )
+
+    def get_meta(self, key: str, default: str = "") -> str:
+        with self.connection() as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value),
             )
 
     def upsert_conversation(self, conversation: Conversation, messages: Sequence[Message]) -> bool:
@@ -148,6 +164,16 @@ class Storage:
                      conversation_id=excluded.conversation_id""",
                 [(e.id, e.date.isoformat(), e.project, e.type, e.title, e.summary, json.dumps(e.evidence_message_ids), e.confidence, e.conversation_id) for e in events if e.id not in suppressed],
             )
+
+    def replace_events(self, events: Sequence[WorkEvent]) -> None:
+        """全量重分析時整批取代事件。
+
+        只 upsert 不刪除的話，事件 id 一變（例如 project 推導結果修正）舊列就會永久殘留。
+        event_overrides 是使用者的手動編輯，不會動它。
+        """
+        with self.connection() as conn:
+            conn.execute("DELETE FROM work_events")
+        self.save_events(events)
 
     def list_events(self, start: Optional[date] = None, end: Optional[date] = None, project: Optional[str] = None) -> List[WorkEvent]:
         clauses: List[str] = []
